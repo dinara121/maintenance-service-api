@@ -11,9 +11,10 @@ import {
 const register = async ({ email, password }) => {
   const existingUser = await userRepository.findByEmail(email);
 
-  if (existingUser) {
+    if (existingUser) {
     const error = new Error('User with this email already exists');
     error.statusCode = 409;
+    error.code = 'USER_ALREADY_EXISTS';
     throw error;
   }
 

@@ -1,26 +1,25 @@
-# Maintenance Service API — Лабораторная работа №3
+# Maintenance Service API — Лабораторная работа №4
 
 REST API для управления техническим обслуживанием промышленного оборудования.
 
-В лабораторной работе выполнен переход от хранения данных в памяти к реляционной базе данных PostgreSQL с использованием ORM Sequelize. Добавлены миграции, начальные данные, модели базы данных, связи между сущностями и SQL-отчёты.
-
 ---
 
-## 1. Цель лабораторной работы
+## 1. Возможности проекта
 
-Цель работы — подключить PostgreSQL к существующему REST API и организовать работу с базой данных через Sequelize.
+Цель работы —  настроить Nginx как reverse proxy к Node.js и базовый деплой; реализовать аутентификацию и разграничение прав, а также мониторинг (Grafana и источник данных, дашборд).
 
 В рамках лабораторной работы выполнены:
-* Подключение PostgreSQL;
-* Запуск PostgreSQL в Docker;
-* Создание структуры базы данных через Sequelize Migrations;
-* Создание начальных данных через Seeders;
-* Создание Sequelize-моделей;
-* Настройка связей между моделями;
-* Перенос работы репозиториев с памяти на PostgreSQL;
-* Сохранение существующей REST API структуры;
-* Добавление SQL-отчётов;
-* Проверка работы API через Postman.
+* Регистрация пользователей и авторизация;
+* Разграничение доступа по ролям viewer, technician и admin;
+* Создание и изменение заявок на техническое обслуживание;
+* Управление оборудованием и площадками.
+* Назначение специалистов на заявки;
+* Получение отчётов по заявкам и оборудованию.
+* Хранение данных в PostgreSQL;
+* Логирование запросов и обработка ошибок;
+* Сбор метрик приложения с помощью Prometheus;
+* Мониторинг и визуализация показателей в Grafana;
+* Автоматизированные тесты с использованием Node.js Test Runner.
 
 ---
 
@@ -34,6 +33,10 @@ REST API для управления техническим обслуживан
 - **Docker** & **Docker Compose**
 - **Postman**
 - **Git**
+- **Nginx**
+- **Prometheus**
+- **Grafana**
+- **Node.js Test Runner**
 
 ---
 
@@ -41,6 +44,22 @@ REST API для управления техническим обслуживан
 
 ```text
 maintenance-service-api/
+├── docs/
+│   └── postman/
+│       ├── Maintenance Service API postman_collection.json
+│       └── maintenance-service.postman_collection.json
+├── grafana/
+│   ├── alerting/
+│   │   └── alert-rules.yaml
+│   ├── dashboards/
+│   │   ├── Maintenance Service Monitoring-1791729432833.json
+│   │   └── Мониторинг технического обслуживания-1791909940998.json
+│   └── provisioning/
+│       ├── dashboards/
+│       │   └── dashboard.yml
+│       └── datasources/
+│           ├── postgres.yml
+│           └── prometheus.yml
 ├── src/
 │   ├── config/
 │   │   ├── database.js
@@ -82,18 +101,29 @@ maintenance-service-api/
 │   │   └── request.service.js
 │   │
 │   └── middlewares/
-│       ├── cors.middleware.js
-│       ├── errorHandler.js
-│       ├── logger.middleware.js
-│       ├── notFound.js
-│       ├── rateLimit.middleware.js
-│       ├── requestId.middleware.js
-│       ├── security.middleware.js
-│       └── validate.js
+│   │   ├── cors.middleware.js
+│   │   ├── errorHandler.js
+│   │   ├── logger.middleware.js
+│   │   ├── notFound.js
+│   │   ├── rateLimit.middleware.js
+│   │   ├── requestId.middleware.js
+│   │   ├── security.middleware.js
+│   │   └── validate.js
+    ├── errors/
+│   ├── monitoring/
+│   ├── utils/
+│   └── validators/
 │
+├── tests/
+│   ├── access-middleware.test.js
+│   ├── jwt.test.js
+│   └── request-service.test.js
+|
 ├── app.js
+├── .dockerignore
 ├── server.js
 ├── docker-compose.yml
+├── Dockerfile
 ├── .env
 ├── .env.example
 ├── .sequelizerc
@@ -101,20 +131,20 @@ maintenance-service-api/
 └── README.md
 ---
 ```
-## 4. Настройка базы данных
+## 4. Установка и настройка
 
-Для работы приложения используется PostgreSQL 16, запущенный в Docker-контейнере.
+Клонирование репозитория:
 
-Конфигурация PostgreSQL находится в файле:
+git clone <git@github.com:dinara323/weather-digest.git>
+cd maintenance-service-api
 
-docker-compose.yml
+Создание файла переменных окружения:
+cp .env.example .env
 
-**используемые параметры базы данных**
-Host: localhost
-Port: 5433
-Database: maintenance_service
-User: maintenance_user
-Password: maintenance_password
+Заполните .env необходимыми параметрами. 
+Для локального запуска без Docker установите зависимости:
+
+npm install
 
 ## 5. Переменные окружения
 **Пример**
@@ -147,53 +177,142 @@ Password: maintenance_password
 **Настройка путей Sequelize CLI:**
 
 **.sequelizerc**
-## 6.Установка проекта
 
-**Клонировать репозиторий:**
+## 6.Запуск проекта
 
-**git clone git@github.com:dinara323/maintenance-service-api.git**
+Запуск через Docker Compose
 
-**Перейти в папку проекта:**
+Соберите образы и запустите сервисы:
 
-**cd maintenance-service-api**
+docker compose up -d --build
 
-**Установить зависимости:**
+Проверка состояния контейнеров:
 
-**npm install**
-## 7.Установка проекта
-**Файл миграции:**
+docker compose ps
 
-**src/db/migrations/001-create-maintenance-tables.cjs**
+Просмотр логов приложения:
 
-**Миграция создаёт следующие таблицы:**
-**sites**
-**equipment**
-**equipment_passports**
-**maintenance_requests**
-**request_status_history**
-**technicians**
-**request_assignees**
+docker compose logs -f api
 
-**Запустить миграции:**
+Просмотр логов остальных сервисов:
 
-**npm run db:migrate**
-**Файл миграции:
+docker compose logs -f
 
-src/db/migrations/001-create-maintenance-tables.cjs
+Остановка сервисов:
+docker compose down
 
-Миграция создаёт следующие таблицы:
+Команда docker compose down останавливает и удаляет контейнеры, но не удаляет именованные тома без дополнительного параметра -v.
 
-sites
-equipment
-equipment_passports
-maintenance_requests
-request_status_history
-technicians
-request_assignees
+Запуск приложения локально
+После установки зависимостей и настройки окружения запустите команду, предусмотренную в package.json:
 
-Запустить миграции:
+npm start
 
-npm run db:migrate**
-**Связи между моделями определены в файле:**
+## 7.Адреса сервисов
+**При использовании текущей конфигурации Docker Compose сервисы доступны по следующим адресам:**
+**API через Nginx - http://localhost:8081**
+**PostgreSQL - Доступен внутри Docker-сети**
+**Prometheus - http://localhost:9090**
+**Grafana - http://localhost:3001**
 
-**src/models/index.js**
+
+## 8. Основные методы API
+
+**1 Проверка состояния и метрики**
+
+
+GET  /api/health   Проверка состояния API
+GET  /api/metrics  Получение метрик для Prometheus
+
+**2 Аутентификация**
+
+POST  /api/auth/register  Регистрация пользователя
+POST  /api/auth/login     Вход в систему
+POST  /api/auth/refresh   Обновление access-токена
+GET   /api/auth/me        Получение данных текущего пользователя
+
+Для защищённых маршрутов используется access-токен, передаваемый в заголовке:
+Authorization: Bearer <ACCESS_TOKEN>
+
+**3 Оборудование**
+Префикс маршрутов: /api/equipment.
+GET Получение списка оборудования
+POSTСоздание записи
+PATCH или PUT Изменение записи
+DELETE Удаление записи, если операция предусмотрена маршрутом
+
+**4 Пользователи и специалисты**
+
+Префикс маршрутов пользователей: /api/users.
+
+Ресурс предназначен для работы с пользователями системы. Операции управления пользователями и специалистами ограничиваются правами доступа.
+
+## 8 Аутентификация и роли
+viewer - Просмотр доступных справочников, заявок, истории и отчётов
+
+technician - Права просмотра, а также изменение назначенных заявок и доступные операции по их выполнению
+
+admin - Администрирование системы, управление оборудованием, площадками, пользователями и назначениями
+
+Типичные ответы при проверке доступа:
+401 Unauthorized — пользователь не прошёл аутентификацию или токен недействителен.
+403 Forbidden — пользователь аутентифицирован, но не имеет необходимых прав.
+
+## 9 Обработка ошибок
+**200 OK - Запрос успешно выполнен**
+**201 Created - Ресурс создан**
+**204 No Content - Операция выполнена без тела ответа**
+**401 Unauthorized - Необходима аутентификация**
+**403 Forbidden - Недостаточно прав**
+**404 Not Found - Ресурс или маршрут не найден**
+**409 Conflict - Конфликт, например повторная регистрация**
+**500 Internal Server Error - Внутренняя ошибка сервера**
+
+## 10 стирование 
+Запуск всех тестов:
+npm test
+
+Тесты охватывают проверку доступа, работу JWT и бизнес-логику заявок.
+
+## 11 Мониторинг
+Prometheus
+Конфигурация находится в:
+
+prometheus/prometheus.yml
+Prometheus собирает метрики с приложения. Интерфейс доступен по адресу:
+
+http://localhost:9090
+Grafana
+Конфигурации и экспортированные дашборды расположены в:
+grafana/
+├── alerting/
+│   └── alert-rules.yaml
+├── dashboards/
+└── provisioning/
+    ├── dashboards/
+    └── datasources
+
+Интерфейс:
+http://localhost:3001
+В проект включены дашборды мониторинга сервиса и технического обслуживания, а также правило оповещения Maintenance API Down.
+
+## 12 Остановка и обслуживание
+Остановка контейнеров:
+docker compose down
+
+Повторная сборка и запуск:
+docker compose up -d --build
+
+Просмотр состояния:
+docker compose ps
+
+Просмотр логов API:
+docker compose logs --tail=100 api
+
+Перед обновлением проекта рекомендуется сохранить необходимые данные базы и проверить изменения конфигурации.
+
+## 13 Итог
+
+Maintenance Service API — серверное приложение для управления техническим обслуживанием оборудования. Проект объединяет REST API, реляционную базу данных, аутентификацию и ролевой доступ, автоматизированные тесты, контейнеризацию и инструменты мониторинга.
+
+Исходный код, конфигурации инфраструктуры, Postman-коллекции и файлы Grafana хранятся в репозитории проекта.

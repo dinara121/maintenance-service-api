@@ -1,0 +1,28 @@
+import {
+  httpRequestsTotal,
+  httpRequestDuration,
+} from '../monitoring/metrics.js';
+
+export default function metricsMiddleware(req, res, next) {
+  const start = process.hrtime.bigint();
+
+  res.on('finish', () => {
+    const duration =
+      Number(process.hrtime.bigint() - start) / 1e9;
+
+    const route = req.route
+      ? req.baseUrl + req.route.path
+      : req.path;
+
+    const labels = {
+      method: req.method,
+      route,
+      status_code: String(res.statusCode),
+    };
+
+    httpRequestsTotal.inc(labels);
+    httpRequestDuration.observe(labels, duration);
+  });
+
+  next();
+}
